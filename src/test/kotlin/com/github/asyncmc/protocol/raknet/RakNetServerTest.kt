@@ -95,6 +95,9 @@ internal class RakNetServerTest {
             } catch (e: AlreadyBoundException) {
                 System.err.println(e.toString())
                 continue
+            } catch (e: Exception) {
+                System.err.println(e.toString())
+                continue
             }.use {
                 runBlocking {
                     it.operation()
