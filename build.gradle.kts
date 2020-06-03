@@ -1,3 +1,20 @@
+/*
+ *     AsyncMC - A fully async, non blocking, thread safe and open source Minecraft server implementation
+ *     Copyright (C) 2020 joserobjr@gamemods.com.br
+ *
+ *     This program is free software: you can redistribute it and/or modify
+ *     it under the terms of the GNU Affero General Public License as published
+ *     by the Free Software Foundation, either version 3 of the License, or
+ *     (at your option) any later version.
+ *
+ *     This program is distributed in the hope that it will be useful,
+ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *     GNU Affero General Public License for more details.
+ *
+ *     You should have received a copy of the GNU Affero General Public License
+ *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
@@ -6,7 +23,7 @@ plugins {
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_14
+    sourceCompatibility = JavaVersion.VERSION_13
     targetCompatibility = JavaVersion.VERSION_13
 }
 
@@ -26,7 +43,7 @@ tasks.withType<JavaCompile>().configureEach {
 
 tasks.withType<KotlinCompile>().configureEach {
     kotlinOptions.jvmTarget = "13"
-    kotlinOptions.freeCompilerArgs += "-Xopt-in=kotlin.contracts.ExperimentalContracts"
+    kotlinOptions.freeCompilerArgs += "-Xopt-in=kotlin.RequiresOptIn"
 }
 
 tasks.named<JavaCompile>("compileJava") {
@@ -52,9 +69,14 @@ plugins.withType<JavaPlugin>().configureEach {
     }
 }
 
+val ktorVersion = findProperty("ktor.version")
+
 dependencies {
     api(kotlin("stdlib-jdk8", embeddedKotlinVersion))
     api(kotlin("reflect", embeddedKotlinVersion))
+
+    implementation("org.jctools:jctools-core:3.0.0")
+    implementation("io.ktor:ktor-network:$ktorVersion")
 
     testImplementation(kotlin("test-junit5", embeddedKotlinVersion))
 
