@@ -37,7 +37,9 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.Mock
 import org.mockito.junit.jupiter.MockitoExtension
+import java.net.Inet4Address
 import java.net.InetSocketAddress
+import java.nio.channels.AlreadyBoundException
 import java.util.*
 import kotlin.random.Random
 import kotlin.test.assertEquals
@@ -51,8 +53,10 @@ internal class RakNetServerTest {
 
     @BeforeEach
     fun setup() {
-        server = RakNetServer(InetSocketAddress("127.0.0.1", 0), listener)
+        println("Starting...")
+        server = RakNetServer(InetSocketAddress(Inet4Address.getLocalHost(), 0), listener)
         server.start()
+        println("Started")
     }
 
     @AfterEach
@@ -77,15 +81,25 @@ internal class RakNetServerTest {
         }
     }
 
-    suspend fun ConnectedDatagramSocket.send(hex: String) {
+    private suspend fun ConnectedDatagramSocket.send(hex: String) {
         send(Datagram(HexDump(hex).toPacket(), remoteAddress))
     }
 
     @OptIn(KtorExperimentalAPI::class)
     fun client(operation: suspend ConnectedDatagramSocket.() -> Unit) {
-        aSocket(ActorSelectorManager(Dispatchers.IO)).udp().connect(server.address, InetSocketAddress("127.0.0.1", 0)).use {
-            runBlocking {
-                it.operation()
+        val udp = aSocket(ActorSelectorManager(Dispatchers.IO)).udp()
+        for (i in 1..10) {
+            try {
+                println("Connecting...")
+                udp.connect(server.address)
+            } catch (e: AlreadyBoundException) {
+                System.err.println(e.toString())
+                continue
+            }.use {
+                runBlocking {
+                    it.operation()
+                }
+                return
             }
         }
     }

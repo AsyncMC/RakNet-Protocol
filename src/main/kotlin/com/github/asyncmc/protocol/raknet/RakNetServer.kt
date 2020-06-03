@@ -35,7 +35,7 @@ import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.atomic.AtomicBoolean
 
 class RakNetServer(
-        private val socketAddress: InetSocketAddress,
+        private val socketAddress: InetSocketAddress?,
         internal val listener: RakNetListener
 ) {
     val guid = ThreadLocalRandom.current().nextLong()
@@ -80,6 +80,7 @@ class RakNetServer(
     }
 
     private suspend fun listen() {
+        niceShutdown.set(true)
         while (true) {
             try {
                 val datagram = binding.incoming.receive()
