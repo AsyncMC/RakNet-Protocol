@@ -6,6 +6,5 @@ module com.github.asyncmc.protocol.raknet {
     requires ktor.io.jvm;
     requires jctools.core;
 
-    //TODO Problems
-    //exports com.github.asyncmc.protocol.raknet;
+    exports com.github.asyncmc.protocol.raknet;
 }

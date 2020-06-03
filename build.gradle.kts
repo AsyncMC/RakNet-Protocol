@@ -27,7 +27,7 @@ java {
     targetCompatibility = JavaVersion.VERSION_13
 }
 
-val moduleName = "com.github.asyncmc.protocol.bedrock"
+val moduleName = "com.github.asyncmc.protocol.raknet"
 
 repositories {
     jcenter()
