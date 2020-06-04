@@ -21,6 +21,7 @@ import com.github.asyncmc.protocol.raknet.packet.RakNetPacketHandler
 import io.ktor.network.selector.ActorSelectorManager
 import io.ktor.network.sockets.BoundDatagramSocket
 import io.ktor.network.sockets.Datagram
+import io.ktor.network.sockets.SocketOptions
 import io.ktor.network.sockets.aSocket
 import io.ktor.util.KtorExperimentalAPI
 import io.ktor.utils.io.core.isEmpty
@@ -35,8 +36,9 @@ import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.atomic.AtomicBoolean
 
 class RakNetServer(
-        private val socketAddress: InetSocketAddress?,
-        internal val listener: RakNetListener
+    internal val listener: RakNetListener,
+    private val socketAddress: InetSocketAddress?,
+    private val configureSocket: SocketOptions.UDPSocketOptions.() -> Unit = {}
 ) {
     val guid = ThreadLocalRandom.current().nextLong()
     private val started = AtomicBoolean(false)
@@ -126,7 +128,7 @@ class RakNetServer(
         check(started.compareAndSet(false, true))
         niceShutdown.set(false)
         try {
-            binding = aSocket(ActorSelectorManager(Dispatchers.IO)).udp().bind(socketAddress)
+            binding = aSocket(ActorSelectorManager(Dispatchers.IO)).udp().bind(socketAddress, configureSocket)
         } catch (e: Throwable) {
             started.compareAndSet(true, false)
             throw e
