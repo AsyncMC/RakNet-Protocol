@@ -28,10 +28,7 @@ import io.ktor.network.sockets.Datagram
 import io.ktor.network.sockets.aSocket
 import io.ktor.util.KtorExperimentalAPI
 import io.ktor.utils.io.core.readUByte
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.*
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -90,40 +87,38 @@ internal class RakNetServerTest {
         send(Datagram(HexDump(hex).toPacket(), remoteAddress))
     }
 
-    inline fun <R> findAvailablePort(timeLimit: Long = 120_000, retries: Int = Int.MAX_VALUE, crossinline action: PortScanning.()->R): R {
+    private inline fun <R> findAvailablePort(
+        timeLimit: Long = 120_000, retries: Int = Int.MAX_VALUE, crossinline action: PortScanning.()->R
+    ): R {
         val ioe = IOException("Failed to find a port")
-        val result = runBlocking {
+        return runBlocking {
             val scan = PortScanning(retries, System.currentTimeMillis(), timeLimit)
             withTimeout(timeLimit) {
-                var result: Optional<R>? = null
-                while (scan.attempt <= scan.max) {
-                    ensureActive()
-                    scan.attempt++
-                    val success = try {
-                        action(scan)
-                    } catch (e: AlreadyBoundException) {
-                        System.err.println(e.toString())
-                        ioe.addSuppressed(e)
-                        continue
-                    } catch (e: SocketException) {
-                        System.err.println(e.toString())
-                        ioe.addSuppressed(e)
-                        if (e.cause is AlreadyBoundException) {
-                            continue
-                        } else {
-                            System.err.println("Cause: ${e.cause}")
-                            continue
-                        }
-                    }
-                    scan.onSuccess?.invoke(success)
-                    result = Optional.ofNullable(success)
-                    break
-                }
-                result
+                portScanningLoop(ioe, scan, action)
             }
         } ?: throw ioe
+    }
 
-        return result.orElse(null)
+    private inline fun <R> CoroutineScope.portScanningLoop(
+        baseException: Exception, scan: PortScanning, crossinline action: PortScanning.()->R
+    ): R {
+        while (scan.attempt <= scan.max) {
+            ensureActive()
+            scan.attempt++
+            val success = try {
+                action(scan)
+            } catch (e: SocketException) {
+                System.err.println(e.toString())
+                baseException.addSuppressed(e)
+                e.cause?.takeUnless { it !is AlreadyBoundException }?.let { cause->
+                    System.err.println("Cause: $cause")
+                }
+                continue
+            }
+            scan.onSuccess?.invoke(success)
+            return success
+        }
+        throw baseException
     }
 
     class PortScanning(var max: Int = 20, val startTime: Long, val timeLimit: Long) {

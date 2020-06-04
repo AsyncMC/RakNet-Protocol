@@ -102,10 +102,8 @@ class RakNetServer(
                     }
                 }
             } catch (e: Exception) {
-                if (e is CancellationException) {
-                    if (!niceShutdown.get()) {
-                        e.printStackTrace()
-                    }
+                if (e is CancellationException && !niceShutdown.get()) {
+                    e.printStackTrace()
                 }
                 try {
                     stop()
