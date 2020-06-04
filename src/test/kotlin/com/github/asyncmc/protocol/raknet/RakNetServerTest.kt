@@ -37,6 +37,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.Mock
 import org.mockito.junit.jupiter.MockitoExtension
+import java.io.IOException
 import java.net.Inet4Address
 import java.net.InetSocketAddress
 import java.net.SocketException
@@ -54,9 +55,11 @@ internal class RakNetServerTest {
 
     @BeforeEach
     fun setup() {
-        println("Starting...")
-        server = RakNetServer(InetSocketAddress(Inet4Address.getLocalHost(), 0), listener)
-        server.start()
+        findAvailablePort {
+            println("Starting...")
+            server = RakNetServer(InetSocketAddress(Inet4Address.getLocalHost(), 0), listener)
+            server.start()
+        }
         println("Started")
     }
 
@@ -86,32 +89,51 @@ internal class RakNetServerTest {
         send(Datagram(HexDump(hex).toPacket(), remoteAddress))
     }
 
-    @OptIn(KtorExperimentalAPI::class)
-    fun client(operation: suspend ConnectedDatagramSocket.() -> Unit) {
-        val udp = aSocket(ActorSelectorManager(Dispatchers.IO)).udp()
-        for (i in 1..10) {
-            try {
-                println("Connecting...")
-                udp.connect(server.address, InetSocketAddress(Inet4Address.getLocalHost(), 0)) {
-                    reusePort = true
-                }
+    inline fun <R> findAvailablePort(retries: Int = 20, action: ()->R): R {
+        val scan = PortScanning<R>(retries)
+        val ioe = IOException("Failed to find a port")
+        while (scan.attempt <= scan.max) {
+            scan.attempt++
+            val success = try {
+                action()
             } catch (e: AlreadyBoundException) {
                 System.err.println(e.toString())
+                ioe.addSuppressed(e)
                 continue
             } catch (e: SocketException) {
                 System.err.println(e.toString())
+                ioe.addSuppressed(e)
                 if (e.cause is AlreadyBoundException) {
                     continue
                 } else {
                     System.err.println("Cause: ${e.cause}")
                     continue
                 }
-            }.use {
-                runBlocking {
-                    it.operation()
-                }
-                return
             }
+            scan.onSuccess?.invoke(success)
+            return success
+        }
+        throw ioe
+    }
+
+    class PortScanning<R>(var max: Int = 20) {
+        var attempt = 0
+        var onSuccess: (R.() -> Unit)? = null
+    }
+
+    @OptIn(KtorExperimentalAPI::class)
+    fun client(operation: suspend ConnectedDatagramSocket.() -> Unit) {
+        val udp = aSocket(ActorSelectorManager(Dispatchers.IO)).udp()
+        findAvailablePort {
+            println("Connecting...")
+            udp.connect(server.address, InetSocketAddress(Inet4Address.getLocalHost(), 0)) {
+                reusePort = true
+            }
+        }.use {
+            runBlocking {
+                it.operation()
+            }
+            return
         }
     }
 
