@@ -39,6 +39,7 @@ import org.mockito.Mock
 import org.mockito.junit.jupiter.MockitoExtension
 import java.net.Inet4Address
 import java.net.InetSocketAddress
+import java.net.SocketException
 import java.nio.channels.AlreadyBoundException
 import java.util.*
 import kotlin.random.Random
@@ -91,13 +92,20 @@ internal class RakNetServerTest {
         for (i in 1..10) {
             try {
                 println("Connecting...")
-                udp.connect(server.address)
+                udp.connect(server.address, InetSocketAddress(Inet4Address.getLocalHost(), 0)) {
+                    reusePort = true
+                }
             } catch (e: AlreadyBoundException) {
                 System.err.println(e.toString())
                 continue
-            } catch (e: Exception) {
+            } catch (e: SocketException) {
                 System.err.println(e.toString())
-                continue
+                if (e.cause is AlreadyBoundException) {
+                    continue
+                } else {
+                    System.err.println("Cause: ${e.cause}")
+                    continue
+                }
             }.use {
                 runBlocking {
                     it.operation()
