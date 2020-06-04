@@ -29,6 +29,7 @@ import io.ktor.network.sockets.aSocket
 import io.ktor.util.KtorExperimentalAPI
 import io.ktor.utils.io.core.readUByte
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.AfterEach
@@ -57,7 +58,7 @@ internal class RakNetServerTest {
     fun setup() {
         findAvailablePort {
             println("Starting...")
-            server = RakNetServer(InetSocketAddress(Inet4Address.getLocalHost(), 0), listener)
+            server = RakNetServer(listener, InetSocketAddress(Inet4Address.getLocalHost(), 0))
             server.start()
         }
         println("Started")
@@ -89,36 +90,45 @@ internal class RakNetServerTest {
         send(Datagram(HexDump(hex).toPacket(), remoteAddress))
     }
 
-    inline fun <R> findAvailablePort(retries: Int = 20, action: ()->R): R {
-        val scan = PortScanning<R>(retries)
+    inline fun <R> findAvailablePort(timeLimit: Long = 120_000, retries: Int = Int.MAX_VALUE, crossinline action: PortScanning.()->R): R {
         val ioe = IOException("Failed to find a port")
-        while (scan.attempt <= scan.max) {
-            scan.attempt++
-            val success = try {
-                action()
-            } catch (e: AlreadyBoundException) {
-                System.err.println(e.toString())
-                ioe.addSuppressed(e)
-                continue
-            } catch (e: SocketException) {
-                System.err.println(e.toString())
-                ioe.addSuppressed(e)
-                if (e.cause is AlreadyBoundException) {
-                    continue
-                } else {
-                    System.err.println("Cause: ${e.cause}")
-                    continue
+        val result = runBlocking {
+            val scan = PortScanning(retries, System.currentTimeMillis(), timeLimit)
+            withTimeout(timeLimit) {
+                var result: Optional<R>? = null
+                while (scan.attempt <= scan.max) {
+                    ensureActive()
+                    scan.attempt++
+                    val success = try {
+                        action(scan)
+                    } catch (e: AlreadyBoundException) {
+                        System.err.println(e.toString())
+                        ioe.addSuppressed(e)
+                        continue
+                    } catch (e: SocketException) {
+                        System.err.println(e.toString())
+                        ioe.addSuppressed(e)
+                        if (e.cause is AlreadyBoundException) {
+                            continue
+                        } else {
+                            System.err.println("Cause: ${e.cause}")
+                            continue
+                        }
+                    }
+                    scan.onSuccess?.invoke(success)
+                    result = Optional.ofNullable(success)
+                    break
                 }
+                result
             }
-            scan.onSuccess?.invoke(success)
-            return success
-        }
-        throw ioe
+        } ?: throw ioe
+
+        return result.orElse(null)
     }
 
-    class PortScanning<R>(var max: Int = 20) {
+    class PortScanning(var max: Int = 20, val startTime: Long, val timeLimit: Long) {
         var attempt = 0
-        var onSuccess: (R.() -> Unit)? = null
+        var onSuccess: ((Any?) -> Unit)? = null
     }
 
     @OptIn(KtorExperimentalAPI::class)
@@ -126,9 +136,7 @@ internal class RakNetServerTest {
         val udp = aSocket(ActorSelectorManager(Dispatchers.IO)).udp()
         findAvailablePort {
             println("Connecting...")
-            udp.connect(server.address, InetSocketAddress(Inet4Address.getLocalHost(), 0)) {
-                reusePort = true
-            }
+            udp.connect(server.address, InetSocketAddress(Inet4Address.getLocalHost(), 0))
         }.use {
             runBlocking {
                 it.operation()
@@ -156,7 +164,7 @@ internal class RakNetServerTest {
                         }.toString().toByteArray()
                 )
             }
-            val server = RakNetServer(InetSocketAddress(19132), listener)
+            val server = RakNetServer(listener, InetSocketAddress(19132))
             server.start()
             runBlocking {
                 server.join()
