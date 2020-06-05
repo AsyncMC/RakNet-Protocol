@@ -15,5 +15,11 @@
  *     You should have received a copy of the GNU Affero General Public License
  *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-rootProject.name = "raknet-protocol"
+package com.github.asyncmc.protocol.raknet
 
+import java.net.SocketAddress
+
+class RakNetSession(
+        val clientSocket: SocketAddress,
+        val protocolServer: RakNetServer
+)

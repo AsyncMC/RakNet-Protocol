@@ -15,5 +15,12 @@
  *     You should have received a copy of the GNU Affero General Public License
  *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-rootProject.name = "raknet-protocol"
+package com.github.asyncmc.protocol.raknet
 
+import io.ktor.network.sockets.Datagram
+import java.net.SocketAddress
+
+interface RakNetListener {
+    fun onUnknownDatagram(server: RakNetServer, session: RakNetSession?, datagram: Datagram)
+    fun onPingFromDisconnected(server: RakNetServer, sender: SocketAddress, sentTick: Long): ByteArray
+}

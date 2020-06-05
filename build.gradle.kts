@@ -1,16 +1,35 @@
+/*
+ *     AsyncMC - A fully async, non blocking, thread safe and open source Minecraft server implementation
+ *     Copyright (C) 2020 joserobjr@gamemods.com.br
+ *
+ *     This program is free software: you can redistribute it and/or modify
+ *     it under the terms of the GNU Affero General Public License as published
+ *     by the Free Software Foundation, either version 3 of the License, or
+ *     (at your option) any later version.
+ *
+ *     This program is distributed in the hope that it will be useful,
+ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *     GNU Affero General Public License for more details.
+ *
+ *     You should have received a copy of the GNU Affero General Public License
+ *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     kotlin("jvm") version "1.3.72"
     jacoco
+    `maven-publish`
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_14
+    sourceCompatibility = JavaVersion.VERSION_13
     targetCompatibility = JavaVersion.VERSION_13
 }
 
-val moduleName = "com.github.asyncmc.protocol.bedrock"
+val moduleName = "com.github.asyncmc.protocol.raknet"
+val isSnapshot = version.toString().endsWith("SNAPSHOT")
 
 repositories {
     jcenter()
@@ -26,7 +45,7 @@ tasks.withType<JavaCompile>().configureEach {
 
 tasks.withType<KotlinCompile>().configureEach {
     kotlinOptions.jvmTarget = "13"
-    kotlinOptions.freeCompilerArgs += "-Xopt-in=kotlin.contracts.ExperimentalContracts"
+    kotlinOptions.freeCompilerArgs += "-Xopt-in=kotlin.RequiresOptIn"
 }
 
 tasks.named<JavaCompile>("compileJava") {
@@ -52,9 +71,14 @@ plugins.withType<JavaPlugin>().configureEach {
     }
 }
 
+val ktorVersion = findProperty("ktor.version")
+
 dependencies {
     api(kotlin("stdlib-jdk8", embeddedKotlinVersion))
     api(kotlin("reflect", embeddedKotlinVersion))
+
+    implementation("org.jctools:jctools-core:3.0.0")
+    implementation("io.ktor:ktor-network:$ktorVersion")
 
     testImplementation(kotlin("test-junit5", embeddedKotlinVersion))
 
@@ -89,6 +113,76 @@ tasks {
         reports {
             xml.isEnabled = true
             html.isEnabled = true
+        }
+    }
+
+    create<Jar>("sourceJar") {
+        archiveClassifier.set("sources")
+        from(sourceSets.main.get().allSource)
+    }
+
+    withType<Jar>().configureEach {
+        from(projectDir) {
+            include("LICENSE.txt")
+            include("NOTICE.md")
+        }
+    }
+}
+
+
+fun findProp(name: String) = findProperty(name)?.toString()?.takeIf { it.isNotBlank() }
+    ?: System.getenv(name.replace('.', '_').toUpperCase())?.takeIf { it.isNotBlank() }
+
+publishing {
+    repositories {
+        maven {
+            val prefix = if (isSnapshot) "asyncmc.repo.snapshot" else "asyncmc.repo.release"
+            url = uri(findProp("$prefix.url") ?: "$buildDir/repo")
+            when(findProp("$prefix.auth.type")) {
+                "password" -> credentials {
+                    username = findProp("$prefix.auth.username")
+                    password = findProp("$prefix.auth.password")
+                }
+                "aws" -> credentials(AwsCredentials::class.java) {
+                    accessKey = findProp("$prefix.auth.access_key")
+                    secretKey = findProp("$prefix.auth.secret_key")
+                    sessionToken = findProp("$prefix.auth.session_token")
+                }
+                "header" -> credentials(HttpHeaderCredentials::class.java) {
+                    name = findProp("$prefix.auth.header_name")
+                    value = findProp("$prefix.auth.header_value")
+                }
+            }
+        }
+    }
+
+    publications {
+        create<MavenPublication>("library") {
+            from(components["java"])
+            artifact(tasks["sourceJar"])
+            pom {
+                name.set("RakNet Protocol")
+                description.set("An async, non blocking, open source, copyleft RakNet library written in Kotlin")
+                url.set("https://github.com/AsyncMC/RakNet-Protocol")
+                licenses {
+                    license {
+                        name.set("GNU Affero General Public License, Version 3")
+                        url.set("https://www.gnu.org/licenses/agpl-3.0.html")
+                    }
+                }
+                developers {
+                    developer {
+                        id.set("joserobjr")
+                        name.set("José Roberto de Araújo Júnior")
+                        email.set("joserobjr@gamemods.com.br")
+                    }
+                }
+                scm {
+                    url.set("https://github.com/AsyncMC/RakNet-Protocol")
+                    connection.set("scm:git:https://github.com/AsyncMC/RakNet-Protocol.git")
+                    developerConnection.set("https://github.com/AsyncMC/RakNet-Protocol.git")
+                }
+            }
         }
     }
 }
