@@ -17,37 +17,41 @@
  */
 package com.github.asyncmc.protocol.raknet.packet
 
-import com.github.asyncmc.protocol.raknet.RakNetServer
-import io.ktor.network.sockets.Datagram
+import com.github.asyncmc.protocol.raknet.RakNetServerBinding
+import com.github.asyncmc.protocol.raknet.constants.UNCONNECTED_CONSTANT
+import io.ktor.network.sockets.*
 import io.ktor.utils.io.core.*
-import java.net.SocketAddress
+import java.net.InetSocketAddress
 
 @ExperimentalUnsignedTypes
-object RakNetPacketUnconnectedPing: RakNetPacketHandler(ID_NOT_CONNECTED_PING) {
-    private val SIZE = NOT_CONNECTED_MAGIC.size + 8L
+object RakNetPacketUnconnectedPing: RakNetPacketHandler(ID_UNCONNECTED_PING) {
+    private val SIZE = UNCONNECTED_CONSTANT.size + 8L
 
-    override fun handleNoSession(server: RakNetServer, sender: SocketAddress, data: ByteReadPacket) {
+    override suspend fun handleNoSession(binding: RakNetServerBinding, sender: InetSocketAddress, data: ByteReadPacket) {
         if (data.remaining < SIZE) {
             return
         }
 
         val sentTick = data.readLong()
-        val magic = data.readBytes(NOT_CONNECTED_MAGIC.size)
-        if (!NOT_CONNECTED_MAGIC.contentEquals(magic)) {
+        val magic = data.readBytes(UNCONNECTED_CONSTANT.size)
+        if (!UNCONNECTED_CONSTANT.contentEquals(magic)) {
             return
         }
+        
+        val guidClient = data.readLong()
 
-        val userData = server.listener.onPingFromDisconnected(server, sender, sentTick)
+        val server = binding.server
+        val userData = server.listeners.ping.onRakNetPing(binding, sender, guidClient, sentTick)
 
         val response = buildPacket(35 + userData.size) {
             writeUByte(ID_NOT_CONNECTED_PONG)
             writeLong(sentTick)
             writeLong(server.guid)
-            writeFully(NOT_CONNECTED_MAGIC)
+            writeFully(UNCONNECTED_CONSTANT)
             writeUShort(userData.size.toUShort())
             writeFully(userData)
         }
 
-        server.send(Datagram(response, sender))
+        binding.sendWithoutQueue(Datagram(response, sender))
     }
 }

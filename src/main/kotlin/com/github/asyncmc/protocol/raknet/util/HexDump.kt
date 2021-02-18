@@ -1,6 +1,6 @@
 /*
  *     AsyncMC - A fully async, non blocking, thread safe and open source Minecraft server implementation
- *     Copyright (C) 2020 joserobjr@gamemods.com.br
+ *     Copyright (C) 2021 joserobjr
  *
  *     This program is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU Affero General Public License as published
@@ -15,11 +15,9 @@
  *     You should have received a copy of the GNU Affero General Public License
  *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package com.github.asyncmc.protocol.raknet
+package com.github.asyncmc.protocol.raknet.util
 
-import io.ktor.utils.io.core.ByteReadPacket
-import io.ktor.utils.io.core.Input
-import io.ktor.utils.io.core.readAvailable
+import io.ktor.utils.io.core.*
 
 data class HexDump(val dump: String) {
     constructor(bytes: ByteArray): this(bytes.toHexString())

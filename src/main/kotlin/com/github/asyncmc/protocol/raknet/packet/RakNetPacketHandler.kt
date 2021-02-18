@@ -17,26 +17,24 @@
  */
 package com.github.asyncmc.protocol.raknet.packet
 
-import com.github.asyncmc.protocol.raknet.RakNetServer
+import com.github.asyncmc.protocol.raknet.RakNetServerBinding
 import com.github.asyncmc.protocol.raknet.RakNetSession
-import io.ktor.utils.io.core.ByteReadPacket
-import java.net.SocketAddress
+import io.ktor.utils.io.core.*
+import java.net.InetSocketAddress
 
 @ExperimentalUnsignedTypes
 abstract class RakNetPacketHandler(val packetId: UByte) {
-    open fun handleNoSession(server: RakNetServer, sender: SocketAddress, data: ByteReadPacket) {
+    open suspend fun handleNoSession(binding: RakNetServerBinding, sender: InetSocketAddress, data: ByteReadPacket) {
         // Does nothing by default
     }
 
-    open fun handleSession(server: RakNetServer, session: RakNetSession, data: ByteReadPacket) {
+    open suspend fun handleSession(binding: RakNetServerBinding, session: RakNetSession, data: ByteReadPacket) {
         // Does nothing by default
     }
 
     companion object {
-        val NOT_CONNECTED_MAGIC = byteArrayOf(0, -1, -1, 0, -2, -2, -2, -2, -3, -3, -3, -3, 18, 52, 86, 120)
-
         const val ID_CONNECTED_PING: UByte = 0x00u
-        const val ID_NOT_CONNECTED_PING: UByte = 0x01u
+        const val ID_UNCONNECTED_PING: UByte = 0x01u
         const val ID_UNCONNECTED_PING_OPEN_CONNECTIONS: UByte = 0x02u
         const val ID_CONNECTED_PONG: UByte = 0x03u
         const val ID_DETECT_LOST_CONNECTION: UByte = 0x04u
@@ -61,7 +59,9 @@ abstract class RakNetPacketHandler(val packetId: UByte) {
         const val ID_USER_PACKET_ENUM: UByte = 0x80u
 
         val byPacketId = listOf(
-                RakNetPacketUnconnectedPing
+            RakNetPacketUnconnectedPing,
+            RakNetPacketOpenConnectionRequest,
+            RakNetPacketOpenConnectionRequest2
         ).associateBy { it.packetId }
     }
 }

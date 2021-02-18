@@ -17,15 +17,27 @@
  */
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
+buildscript {
+    dependencies {
+        classpath("org.jetbrains.kotlinx:atomicfu-gradle-plugin:0.15.1")
+    }
+}
+
+val kotlinVersion = "1.4.21"
 plugins {
-    kotlin("jvm") version "1.3.72"
+    kotlin("jvm") version "1.4.21"
     jacoco
     `maven-publish`
+    
+}
+
+apply {
+    plugin("kotlinx-atomicfu")
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_13
-    targetCompatibility = JavaVersion.VERSION_13
+    sourceCompatibility = JavaVersion.VERSION_15
+    targetCompatibility = JavaVersion.VERSION_15
 }
 
 val moduleName = "com.github.asyncmc.protocol.raknet"
@@ -44,7 +56,7 @@ tasks.withType<JavaCompile>().configureEach {
 }
 
 tasks.withType<KotlinCompile>().configureEach {
-    kotlinOptions.jvmTarget = "13"
+    kotlinOptions.jvmTarget = "15"
     kotlinOptions.freeCompilerArgs += "-Xopt-in=kotlin.RequiresOptIn"
 }
 
@@ -72,15 +84,25 @@ plugins.withType<JavaPlugin>().configureEach {
 }
 
 val ktorVersion = findProperty("ktor.version")
+val log4j2Version = findProperty("log4j2.version")
+val slf4jVersion = findProperty("slf4j.version")
 
 dependencies {
-    api(kotlin("stdlib-jdk8", embeddedKotlinVersion))
-    api(kotlin("reflect", embeddedKotlinVersion))
+    api(kotlin("stdlib-jdk8", kotlinVersion))
+    api(kotlin("reflect", kotlinVersion))
+    api("com.github.asyncmc:raknet-api:0.1.0-SNAPSHOT")
 
     implementation("org.jctools:jctools-core:3.0.0")
     implementation("io.ktor:ktor-network:$ktorVersion")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.2")
+    
+    implementation("com.michael-bull.kotlin-inline-logger:kotlin-inline-logger:1.0.2")
+    implementation("org.slf4j:slf4j-api:$slf4jVersion")
+    implementation("org.apache.logging.log4j:log4j-slf4j-impl:$log4j2Version")
+    implementation("org.apache.logging.log4j:log4j-api:$log4j2Version")
+    implementation("org.apache.logging.log4j:log4j-core:$log4j2Version")
 
-    testImplementation(kotlin("test-junit5", embeddedKotlinVersion))
+    testImplementation(kotlin("test-junit5", kotlinVersion))
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.7.0-M1")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.7.0-M1")

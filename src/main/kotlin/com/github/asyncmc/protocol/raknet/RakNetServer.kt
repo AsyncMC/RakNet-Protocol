@@ -1,6 +1,6 @@
 /*
  *     AsyncMC - A fully async, non blocking, thread safe and open source Minecraft server implementation
- *     Copyright (C) 2020 joserobjr@gamemods.com.br
+ *     Copyright (C) 2021 joserobjr
  *
  *     This program is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU Affero General Public License as published
@@ -15,167 +15,108 @@
  *     You should have received a copy of the GNU Affero General Public License
  *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 package com.github.asyncmc.protocol.raknet
 
-import com.github.asyncmc.protocol.raknet.packet.RakNetPacketHandler
-import io.ktor.network.selector.ActorSelectorManager
-import io.ktor.network.sockets.BoundDatagramSocket
-import io.ktor.network.sockets.Datagram
-import io.ktor.network.sockets.SocketOptions
-import io.ktor.network.sockets.aSocket
-import io.ktor.util.KtorExperimentalAPI
-import io.ktor.utils.io.core.isEmpty
-import io.ktor.utils.io.core.readUByte
+import com.github.michaelbull.logging.InlineLogger
 import kotlinx.coroutines.*
+import kotlinx.coroutines.selects.SelectClause0
+import kotlinx.coroutines.selects.select
 import org.jctools.maps.NonBlockingHashMap
 import org.jctools.maps.NonBlockingHashSet
-import java.io.IOException
 import java.net.InetAddress
 import java.net.InetSocketAddress
-import java.util.concurrent.ThreadLocalRandom
-import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.time.ExperimentalTime
+import com.github.asyncmc.protocol.raknet.api.RakNetServer as RakNetServerAPI
 
-class RakNetServer(
-    internal val listener: RakNetListener,
-    private val socketAddress: InetSocketAddress?,
-    private val configureSocket: SocketOptions.UDPSocketOptions.() -> Unit = {}
-) {
-    val guid = ThreadLocalRandom.current().nextLong()
-    private val started = AtomicBoolean(false)
-    private val niceShutdown = AtomicBoolean(false)
-    private lateinit var binding: BoundDatagramSocket
-    private lateinit var rakNetScope: CoroutineScope
-
-    val job get() = rakNetScope.coroutineContext[Job]!!
+/**
+ * @author joserobjr
+ * @since 2021-01-05
+ */
+class RakNetServer private constructor(configs: RakNetServerConfigurationContext): RakNetServerAPI {
+    private val _socketAddresses = configs.socketAddresses.distinct().toTypedArray()
+    init {
+        require(_socketAddresses.isNotEmpty()) {
+            "At least one socket address is required to open a RakNet server."
+        }
+        
+        require(_socketAddresses.none { it.isUnresolved }) {
+            "The socket addresses cannot be unresolved. Unresolved: ${_socketAddresses.filter { it.isUnresolved }}"
+        }
+    }
+    
+    private val log = InlineLogger()
+    private val udpConfigurator = configs.udpConfigurator
+    val guid = configs.guid
+    var maxConnections = configs.maxConnections
+    val listeners = configs.listeners.copy()
+    val supportedProtocols = configs.supportedProtocols.toSet()
+    val maxInactivity = configs.maxInactivity
     val blockedAddresses: MutableSet<InetAddress> = NonBlockingHashSet()
     val sessions: MutableMap<InetSocketAddress, RakNetSession> = NonBlockingHashMap()
+    
+    private val socketAddresses get() = _socketAddresses.toList()
+    val name = socketAddresses.toString()
+    private val job = Job(configs.parentJob)
+    private val coroutineScope = CoroutineScope(job + CoroutineName("RakNet server $name") + Dispatchers.IO)
 
-    val address get() = binding.localAddress
-
-    internal fun send(datagram: Datagram): Job {
-        checkIsRunning()
-        return rakNetScope.launch {
-            binding.outgoing.send(datagram)
-        }
+    private val bindingsSupervisor = SupervisorJob(job)
+    override val bindings = try {
+        _socketAddresses.mapTo(mutableListOf(), this::bind)
+    } catch (e: Exception) {
+        job.cancel(CancellationException("Exception while binding the UDP ports", e))
+        throw e
     }
-
-    private fun checkIsRunning() {
-        if (!started.get()) {
-            throw IOException("The server is not running")
-        }
-    }
-
-    @OptIn(ExperimentalUnsignedTypes::class)
-    private fun handle(datagram: Datagram) {
-        val packetId = datagram.packet.readUByte()
-        val session = sessions[datagram.address]
-        val handler = RakNetPacketHandler.byPacketId[packetId]
-        if (handler == null) {
-            listener.onUnknownDatagram(this, session, datagram)
-            return
-        }
-        if (session != null) {
-            handler.handleSession(this, session, datagram.packet)
-        } else {
-            handler.handleNoSession(this, datagram.address, datagram.packet)
-        }
-    }
-
-    private suspend fun listen() {
-        niceShutdown.set(true)
-        while (true) {
-            try {
-                val datagram = binding.incoming.receive()
-                val address = datagram.address
-                val packet = datagram.packet
-                if (packet.isEmpty || address is InetSocketAddress && address.address in blockedAddresses) {
-                    packet.release()
-                    continue
-                }
-                coroutineScope {
-                    launch(Dispatchers.Default) {
-                        try {
-                            handle(datagram)
-                        } finally {
-                            packet.release()
+    
+    val onClose: SelectClause0 get() = job.onJoin
+    
+    init {
+        with(coroutineScope) {
+            launch {
+                while (job.isActive) {
+                    select<Unit> {
+                        bindings.forEachIndexed { index, binding ->
+                            binding.onClose {
+                                log.warn { "The RakNet binding ${binding.address} was closed unexpectedly, reopening..." }
+                                bindings[index] = bind(binding.address)
+                                delay(1000)
+                            }
                         }
                     }
                 }
-            } catch (e: Exception) {
-                if (e is CancellationException && !niceShutdown.get()) {
-                    e.printStackTrace()
-                }
-                try {
-                    stop()
-                } catch (e2: Throwable) {
-                    e.addSuppressed(e2)
-                }
-                throw e
-            } finally {
-                try {
-                    stop()
-                } finally {
-                    started.compareAndSet(true, false)
-                }
             }
         }
     }
-
-    @OptIn(KtorExperimentalAPI::class)
-    fun start() {
-        check(started.compareAndSet(false, true))
-        niceShutdown.set(false)
-        try {
-            binding = aSocket(ActorSelectorManager(Dispatchers.IO)).udp().bind(socketAddress, configureSocket)
-        } catch (e: Throwable) {
-            started.compareAndSet(true, false)
-            throw e
-        }
-
-        rakNetScope = CoroutineScope(Dispatchers.IO)
-        rakNetScope.launch {
-            listen()
-        }
+    
+    private fun bind(address: InetSocketAddress): RakNetServerBinding {
+        return RakNetServerBinding(this,
+            address, udpConfigurator,
+            bindingsSupervisor
+        )
+    }
+    
+    suspend fun awaitClose() {
+        job.join()
+    }
+    
+    override fun close() {
+        close(null)
     }
 
-    fun stop(message: String? = null, cause: Throwable? = null) {
-        if (!started.get()) return
-        try {
-            listOf(
-                    tryCatching { rakNetScope.takeIf { it.isActive }?.cancel(CancellationException(message, cause)) },
-                    tryCatching { binding.close() }
-            ).throwIfAny()
-            if (started.get()) {
-                niceShutdown.set(true)
-            }
-        } finally {
-            started.compareAndSet(true, false)
-        }
+    fun close(message: String? = null, cause: Throwable? = null) {
+        log.debug(cause) { "The RakNet server $name is being closed. $message" }
+        job.cancel(CancellationException(
+            cause = cause,
+            message = message.takeUnless { it.isNullOrEmpty() } ?: "The RakNet server $name is being closed"
+        ))
     }
-
-    private fun List<Exception?>.throwIfAny() {
-        combined()?.let { throw it }
-    }
-
-    private fun List<Exception?>.combined(): Exception? {
-        val first = indexOfFirst { it != null }
-        if (first < 0) return null
-        val base = this[first]!!
-        subList(first + 1, size)
-                .asSequence()
-                .filterNotNull()
-                .forEach { base.addSuppressed(it) }
-        return base
-    }
-
-    private inline fun tryCatching(operation: () -> Unit): Exception? {
-        return try {
-            operation()
-            null
-        } catch (exception: Exception) {
-            exception
+    
+    companion object {
+        @OptIn(ExperimentalTime::class, ExperimentalUnsignedTypes::class)
+        @JvmName("createInstance")
+        operator fun invoke(configurator: RakNetServerConfigurationContext.() -> Unit): RakNetServer {
+            val config = RakNetServerConfigurationContext().apply(configurator)
+            return RakNetServer(config)
         }
     }
-
-    suspend fun join() = job.join()
 }
