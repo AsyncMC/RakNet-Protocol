@@ -15,18 +15,18 @@
  *     You should have received a copy of the GNU Affero General Public License
  *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package com.github.asyncmc.protocol.raknet.packet
+package com.github.asyncmc.protocol.raknet.asyncmc.packet
 
-import com.github.asyncmc.protocol.raknet.RakNetServer
-import io.ktor.network.sockets.Datagram
+import com.github.asyncmc.protocol.raknet.asyncmc.RakNetServer
+import io.ktor.network.sockets.*
 import io.ktor.utils.io.core.*
-import java.net.SocketAddress
+import java.net.InetSocketAddress
 
 @ExperimentalUnsignedTypes
 object RakNetPacketUnconnectedPing: RakNetPacketHandler(ID_NOT_CONNECTED_PING) {
     private val SIZE = NOT_CONNECTED_MAGIC.size + 8L
 
-    override fun handleNoSession(server: RakNetServer, sender: SocketAddress, data: ByteReadPacket) {
+    override fun handleNoSession(server: RakNetServer, sender: InetSocketAddress, data: ByteReadPacket) {
         if (data.remaining < SIZE) {
             return
         }
@@ -37,7 +37,7 @@ object RakNetPacketUnconnectedPing: RakNetPacketHandler(ID_NOT_CONNECTED_PING) {
             return
         }
 
-        val userData = server.listener.onPingFromDisconnected(server, sender, sentTick)
+        val userData = server.listener.onPingFromDisconnected(server, sender, sentTick) ?: return
 
         val response = buildPacket(35 + userData.size) {
             writeUByte(ID_NOT_CONNECTED_PONG)

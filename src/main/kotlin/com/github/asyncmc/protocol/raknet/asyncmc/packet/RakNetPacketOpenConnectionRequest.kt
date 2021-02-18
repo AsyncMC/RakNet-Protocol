@@ -15,15 +15,15 @@
  *     You should have received a copy of the GNU Affero General Public License
  *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package com.github.asyncmc.protocol.raknet.packet
+package com.github.asyncmc.protocol.raknet.asyncmc.packet
 
-import com.github.asyncmc.protocol.raknet.RakNetServer
-import io.ktor.utils.io.core.ByteReadPacket
-import java.net.SocketAddress
+import com.github.asyncmc.protocol.raknet.asyncmc.RakNetServer
+import io.ktor.utils.io.core.*
+import java.net.InetSocketAddress
 
 @ExperimentalUnsignedTypes
 object RakNetPacketOpenConnectionRequest: RakNetPacketHandler(ID_OPEN_CONNECTION_REQUEST_1) {
-    override fun handleNoSession(server: RakNetServer, sender: SocketAddress, data: ByteReadPacket) {
+    override fun handleNoSession(server: RakNetServer, sender: InetSocketAddress, data: ByteReadPacket) {
 
     }
 }

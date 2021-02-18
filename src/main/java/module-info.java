@@ -1,4 +1,7 @@
-module com.github.asyncmc.protocol.raknet {
+import com.github.asyncmc.protocol.raknet.api.RakNetAPI;
+import com.github.asyncmc.protocol.raknet.asyncmc.RakNetAsyncMC;
+
+module com.github.asyncmc.protocol.raknet.asyncmc {
     requires kotlin.stdlib;
     requires ktor.network;
     requires kotlinx.coroutines.core;
@@ -6,5 +9,8 @@ module com.github.asyncmc.protocol.raknet {
     requires ktor.io.jvm;
     requires jctools.core;
 
-    exports com.github.asyncmc.protocol.raknet;
+    requires com.github.asyncmc.protocol.raknet.api;
+    provides RakNetAPI with RakNetAsyncMC;
+
+    exports com.github.asyncmc.protocol.raknet.asyncmc;
 }

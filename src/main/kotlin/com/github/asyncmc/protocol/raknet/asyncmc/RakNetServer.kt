@@ -1,6 +1,6 @@
 /*
  *     AsyncMC - A fully async, non blocking, thread safe and open source Minecraft server implementation
- *     Copyright (C) 2020 joserobjr@gamemods.com.br
+ *     Copyright (C) 2020  José Roberto de Araújo Júnior <joserobjr@gamemods.com.br>
  *
  *     This program is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU Affero General Public License as published
@@ -15,17 +15,14 @@
  *     You should have received a copy of the GNU Affero General Public License
  *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package com.github.asyncmc.protocol.raknet
+package com.github.asyncmc.protocol.raknet.asyncmc
 
-import com.github.asyncmc.protocol.raknet.packet.RakNetPacketHandler
-import io.ktor.network.selector.ActorSelectorManager
-import io.ktor.network.sockets.BoundDatagramSocket
-import io.ktor.network.sockets.Datagram
-import io.ktor.network.sockets.SocketOptions
-import io.ktor.network.sockets.aSocket
-import io.ktor.util.KtorExperimentalAPI
-import io.ktor.utils.io.core.isEmpty
-import io.ktor.utils.io.core.readUByte
+import com.github.asyncmc.protocol.raknet.api.RakNetServer
+import com.github.asyncmc.protocol.raknet.asyncmc.packet.RakNetPacketHandler
+import io.ktor.network.selector.*
+import io.ktor.network.sockets.*
+import io.ktor.util.*
+import io.ktor.utils.io.core.*
 import kotlinx.coroutines.*
 import org.jctools.maps.NonBlockingHashMap
 import org.jctools.maps.NonBlockingHashSet
@@ -36,10 +33,11 @@ import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.atomic.AtomicBoolean
 
 class RakNetServer(
-    internal val listener: RakNetListener,
+    override val api: RakNetAsyncMC,
+    internal val listener: RakNetDatagramListener,
     private val socketAddress: InetSocketAddress?,
     private val configureSocket: SocketOptions.UDPSocketOptions.() -> Unit = {}
-) {
+): RakNetServer {
     val guid = ThreadLocalRandom.current().nextLong()
     private val started = AtomicBoolean(false)
     private val niceShutdown = AtomicBoolean(false)
@@ -77,7 +75,7 @@ class RakNetServer(
         if (session != null) {
             handler.handleSession(this, session, datagram.packet)
         } else {
-            handler.handleNoSession(this, datagram.address, datagram.packet)
+            handler.handleNoSession(this, datagram.address as InetSocketAddress, datagram.packet)
         }
     }
 

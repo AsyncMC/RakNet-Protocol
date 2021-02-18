@@ -1,6 +1,6 @@
 /*
  *     AsyncMC - A fully async, non blocking, thread safe and open source Minecraft server implementation
- *     Copyright (C) 2020 joserobjr@gamemods.com.br
+ *     Copyright (C) 2020  José Roberto de Araújo Júnior <joserobjr@gamemods.com.br>
  *
  *     This program is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU Affero General Public License as published
@@ -15,12 +15,12 @@
  *     You should have received a copy of the GNU Affero General Public License
  *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package com.github.asyncmc.protocol.raknet
+package com.github.asyncmc.protocol.raknet.asyncmc
 
-import io.ktor.network.sockets.Datagram
+import com.github.asyncmc.protocol.raknet.api.RakNetSession
 import java.net.SocketAddress
 
-interface RakNetListener {
-    fun onUnknownDatagram(server: RakNetServer, session: RakNetSession?, datagram: Datagram)
-    fun onPingFromDisconnected(server: RakNetServer, sender: SocketAddress, sentTick: Long): ByteArray
-}
+class RakNetSession(
+    override val clientSocket: SocketAddress,
+    override val protocolServer: RakNetServer
+): RakNetSession

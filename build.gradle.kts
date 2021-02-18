@@ -28,7 +28,7 @@ java {
     targetCompatibility = JavaVersion.VERSION_13
 }
 
-val moduleName = "com.github.asyncmc.protocol.raknet"
+val moduleName = "com.github.asyncmc.protocol.raknet.asyncmc"
 val isSnapshot = version.toString().endsWith("SNAPSHOT")
 
 repositories {
@@ -79,6 +79,7 @@ dependencies {
 
     implementation("org.jctools:jctools-core:3.0.0")
     implementation("io.ktor:ktor-network:$ktorVersion")
+    implementation("com.github.asyncmc:raknet-interface:0.1.0-SNAPSHOT")
 
     testImplementation(kotlin("test-junit5", embeddedKotlinVersion))
 
