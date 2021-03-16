@@ -18,20 +18,25 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    kotlin("jvm") version "1.3.72"
+    kotlin("jvm") version "1.4.31"
     jacoco
     `maven-publish`
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_13
-    targetCompatibility = JavaVersion.VERSION_13
+    sourceCompatibility = JavaVersion.VERSION_15
+    targetCompatibility = JavaVersion.VERSION_15
+}
+
+kotlin {
+    explicitApi()
 }
 
 val moduleName = "com.github.asyncmc.protocol.raknet.asyncmc"
 val isSnapshot = version.toString().endsWith("SNAPSHOT")
 
 repositories {
+    mavenCentral()
     jcenter()
     maven(url = "https://repo.gamemods.com.br/public/")
 }
@@ -44,7 +49,7 @@ tasks.withType<JavaCompile>().configureEach {
 }
 
 tasks.withType<KotlinCompile>().configureEach {
-    kotlinOptions.jvmTarget = "13"
+    kotlinOptions.jvmTarget = "15"
     kotlinOptions.freeCompilerArgs += "-Xopt-in=kotlin.RequiresOptIn"
 }
 
@@ -102,9 +107,22 @@ tasks.withType<Test> {
     }
 }
 
+sourceSets {
+    main {
+        java {
+            outputDir = buildDir.resolve("classes/kotlin/main")
+        }
+    }
+    test {
+        java {
+            outputDir = buildDir.resolve("classes/kotlin/test")
+        }
+    }
+}
+
 jacoco {
     //toolVersion = jacocoVersion
-    reportsDir = file("$buildDir/reports/jacoco")
+    reportsDirectory.set(file("$buildDir/reports/jacoco"))
 }
 
 tasks {
